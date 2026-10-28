@@ -12,47 +12,101 @@ import streamlit as st
 
 
 ROOT = Path(__file__).resolve().parent
-MAX_MB = 20
 MAX_SECONDS = 30
-
+MAX_MB = 20
 
 st.set_page_config(
-    page_title="مراجعة الفيديو",
-    page_icon="🎥",
-    layout="wide",
+    page_title="ExamLens",
+    page_icon="◉",
+    layout="centered",
 )
 
 st.markdown(
     """
     <style>
+    .stApp {
+        background: #0b1120;
+        color: #e2e8f0;
+    }
+
     .block-container {
-        max-width: 1100px;
-        padding-top: 2rem;
-        padding-bottom: 3rem;
+        max-width: 960px;
+        padding-top: 3rem;
+        padding-bottom: 2rem;
+        direction: ltr;
+        text-align: left;
     }
-    .hero {
-        direction: rtl;
-        text-align: right;
-        padding: 26px;
-        border: 1px solid #334155;
-        border-radius: 20px;
-        background: linear-gradient(120deg, #0f172a, #164e63);
-        color: white;
-        margin-bottom: 22px;
+
+    .brand {
+        color: #38bdf8;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 3px;
+        margin-bottom: 12px;
     }
-    .hero h1 {
-        color: white;
+
+    .heading {
+        color: #f8fafc;
+        font-size: clamp(30px, 5vw, 42px);
+        font-weight: 700;
+        letter-spacing: -1.5px;
+        line-height: 1.2;
         margin-bottom: 10px;
-        font-size: 2rem;
     }
-    .hero p {
-        color: #dbeafe;
-        font-size: 1.05rem;
-        margin-bottom: 0;
+
+    .subtitle {
+        color: #94a3b8;
+        font-size: 15px;
+        margin-bottom: 30px;
     }
+
+    [data-testid="stFileUploader"] {
+        background: #111b2e;
+        border: 1px solid #25334b;
+        border-radius: 16px;
+        padding: 12px;
+    }
+
+    [data-testid="stMetric"] {
+        background: #111b2e;
+        border: 1px solid #25334b;
+        border-radius: 14px;
+        padding: 16px;
+    }
+
+    [data-testid="stMetricLabel"] {
+        color: #94a3b8;
+    }
+
+    [data-testid="stMetricValue"] {
+        color: #f8fafc;
+    }
+
     div.stButton > button,
     div.stDownloadButton > button {
-        border-radius: 12px;
+        border-radius: 10px;
+        min-height: 44px;
+    }
+
+    div.stButton > button[kind="primary"] {
+        background: #0284c7;
+        border: 1px solid #0284c7;
+        color: white;
+        font-weight: 600;
+    }
+
+    div.stButton > button[kind="primary"]:hover {
+        background: #0369a1;
+        border-color: #0369a1;
+    }
+
+    .footer {
+        margin-top: 28px;
+        padding-top: 16px;
+        border-top: 1px solid #25334b;
+        color: #94a3b8;
+        font-size: 12px;
+        line-height: 1.7;
     }
     </style>
     """,
@@ -61,35 +115,15 @@ st.markdown(
 
 st.markdown(
     """
-    <div class="hero">
-        <h1>🎥 مراجعة الفيديو بالذكاء الاصطناعي</h1>
-        <p>
-            رصد الموبايلات وحركة الرأس،
-            مع عرض الفيديو الناتج وتحميل تقارير المراجعة.
-        </p>
+    <div class="brand">EXAMLENS</div>
+    <div class="heading">Video review, simplified.</div>
+    <div class="subtitle">
+        Phone detection & head movement analysis.
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-st.warning(
-    "نسخة تجريبية للمراجعة البشرية فقط. "
-    "وجود موبايل أو التفات الرأس مش دليل على الغش، "
-    "ولا يثبت التركيز أو عدمه."
-)
-
-with st.expander("حدود التجربة والخصوصية"):
-    st.write(
-        "• أقصى مدة: ٢٠ ثانية.\n\n"
-        "• أقصى حجم: ٢٠ ميجابايت.\n\n"
-        "• المعالجة بتحصل على السيرفر، مش على جهازك فقط.\n\n"
-        "• ارفع فقط فيديو عندك إذن باستخدامه ومعالجته.\n\n"
-        "• التطبيق لا يضيف الفيديوهات لبيانات تدريب. "
-        "ملفات العمل المؤقتة تُحذف عند انتهاء المحاولة، "
-        "والنتيجة تُحفظ في ذاكرة جلسة الصفحة لعرضها وتحميلها.\n\n"
-        "• الرصد ممكن يخطئ أو يفوّت موبايل، "
-        "خصوصًا قرب الوجه أو مع الحجب."
-    )
 
 RUNNER = """
 import sys
@@ -134,7 +168,7 @@ if __name__ == "__main__":
 """
 
 
-def run_analysis(video_bytes):
+def analyze_video(video_bytes):
     required = [
         ROOT / "step5_detector.py",
         ROOT / "models" / "face_landmarker.task",
@@ -149,16 +183,14 @@ def run_analysis(video_bytes):
 
     if missing:
         raise RuntimeError(
-            "ملفات ناقصة أو فاضية: " + ", ".join(missing)
+            "Missing or empty files: " + ", ".join(missing)
         )
 
     ffmpeg = shutil.which("ffmpeg")
 
     if ffmpeg is None:
         raise RuntimeError(
-            "أداة ffmpeg مش متثبتة. "
-            "أضف ffmpeg لملف packages.txt "
-            "واستنى إعادة تجهيز الموقع."
+            "FFmpeg is unavailable. Add ffmpeg to packages.txt."
         )
 
     with tempfile.TemporaryDirectory() as directory:
@@ -174,7 +206,7 @@ def run_analysis(video_bytes):
         try:
             opened = cap.isOpened()
             fps = cap.get(cv2.CAP_PROP_FPS)
-            frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
             readable, first_frame = cap.read()
         finally:
             cap.release()
@@ -183,27 +215,26 @@ def run_analysis(video_bytes):
             not opened
             or not readable
             or fps <= 0
-            or frame_count <= 0
+            or count <= 0
         ):
-            raise RuntimeError(
-                "مش قادر أقرأ الفيديو. جرّب ملف MP4 تاني."
+            raise ValueError(
+                "Unable to read this video. Please try another MP4."
             )
 
-        duration = frame_count / fps
+        duration = count / fps
 
         if duration > MAX_SECONDS:
-            raise RuntimeError(
-                f"مدة الفيديو {duration:.1f} ثانية. "
-                "اختار مقطع مدته ٢٠ ثانية أو أقل."
+            raise ValueError(
+                f"Video duration is {duration:.1f}s. "
+                f"Maximum allowed: {MAX_SECONDS}s."
             )
 
-        # حد إضافي لتقليل استهلاك ذاكرة السيرفر.
         height, width = first_frame.shape[:2]
 
-        if width > 1920 or height > 1920 or fps > 60:
-            raise RuntimeError(
-                "الفيديو كبير على النسخة التجريبية. "
-                "استخدم دقة 1080p أو أقل ومعدل ٦٠ فريم أو أقل."
+        if max(width, height) > 1920 or fps > 60:
+            raise ValueError(
+                "Please use a video up to 1920px "
+                "on its longest side and up to 60 FPS."
             )
 
         result = subprocess.run(
@@ -233,13 +264,12 @@ def run_analysis(video_bytes):
         for path in (raw_video, report, events):
             if not path.is_file() or path.stat().st_size == 0:
                 raise RuntimeError(
-                    "التحليل ما أنتجش كل الملفات المطلوبة."
+                    "Processing did not produce all required files."
                 )
 
-        # تحويل الفيديو لصيغة مناسبة للتشغيل في المتصفح.
         browser_video = output / "result.mp4"
 
-        converted = subprocess.run(
+        conversion = subprocess.run(
             [
                 ffmpeg,
                 "-y",
@@ -260,30 +290,45 @@ def run_analysis(video_bytes):
             timeout=120,
         )
 
-        if converted.returncode != 0:
+        if (
+            conversion.returncode != 0
+            or not browser_video.is_file()
+            or browser_video.stat().st_size == 0
+        ):
             raise RuntimeError(
-                "التحليل خلص، لكن تحويل الفيديو للعرض فشل:\n"
-                + converted.stderr[-6000:]
+                "Video conversion failed.\n"
+                + conversion.stderr[-6000:]
             )
+
+        phone_unavailable = any(
+            message in log
+            for message in [
+                "phone detection unavailable",
+                "phone detection disabled",
+                "phone detector timed out",
+            ]
+        )
 
         return {
             "video": browser_video.read_bytes(),
             "report": report.read_bytes(),
             "events": events.read_bytes(),
             "duration": duration,
+            "phone_unavailable": phone_unavailable,
             "log": log,
         }
 
 
-st.subheader("١. اختار الفيديو")
-
 uploaded = st.file_uploader(
-    "ارفع فيديو بصيغة MP4",
+    "Upload video",
     type=["mp4"],
+    help=f"MP4 · Up to {MAX_SECONDS} seconds · {MAX_MB} MB",
 )
 
-# مسح النتيجة القديمة عند تغيير الملف حتى لا تختلط النتائج.
+st.caption(f"MP4 · {MAX_SECONDS}s max · {MAX_MB} MB max")
+
 video_bytes = uploaded.getvalue() if uploaded else None
+
 file_id = (
     hashlib.sha256(video_bytes).hexdigest()
     if video_bytes is not None
@@ -294,22 +339,18 @@ if st.session_state.get("file_id") != file_id:
     st.session_state.pop("results", None)
     st.session_state["file_id"] = file_id
 
-if uploaded:
-    st.caption(
-        f"الملف: {uploaded.name} — "
-        f"الحجم: {uploaded.size / (1024 * 1024):.1f} ميجابايت"
-    )
-
-    with st.expander("معاينة الفيديو الأصلي"):
-        st.video(video_bytes)
-
 consent = st.checkbox(
-    "عندي إذن باستخدام الفيديو ومعالجته على السيرفر."
+    "I have permission to upload and process this video."
 )
 
+if uploaded:
+    with st.expander("Preview original"):
+        st.video(video_bytes)
+
 start = st.button(
-    "▶ ابدأ تحليل الفيديو",
+    "Analyze Video",
     type="primary",
+    use_container_width=True,
     disabled=uploaded is None or not consent,
 )
 
@@ -317,54 +358,37 @@ if start:
     st.session_state.pop("results", None)
 
     if len(video_bytes) > MAX_MB * 1024 * 1024:
-        st.error("حجم الفيديو أكبر من ٢٠ ميجابايت.")
+        st.error(f"File size exceeds {MAX_MB} MB.")
     else:
         try:
-            with st.spinner(
-                "جاري التحليل وتجهيز الفيديو للعرض…"
-            ):
-                st.session_state["results"] = run_analysis(
+            with st.spinner("Analyzing video…"):
+                st.session_state["results"] = analyze_video(
                     video_bytes
                 )
 
+        except ValueError as error:
+            st.error(str(error))
+
         except subprocess.TimeoutExpired:
             st.error(
-                "المعالجة تجاوزت المهلة. جرّب مقطع أقصر."
+                "Processing timed out. Please try a shorter video."
             )
 
         except Exception as error:
-            st.error("حصل خطأ أثناء المعالجة.")
-            with st.expander("تفاصيل الخطأ", expanded=True):
+            st.error("Processing failed.")
+            with st.expander("Technical details"):
                 st.code(str(error))
 
 
 if "results" in st.session_state:
     data = st.session_state["results"]
 
-    st.divider()
-    st.subheader("٢. نتيجة التحليل")
-    st.success(
-        "انتهى التشغيل. شغّل الفيديو هنا وراجع العلامات."
-    )
-
-    phone_unavailable = any(
-        message in data["log"]
-        for message in [
-            "phone detection unavailable",
-            "phone detection disabled",
-            "phone detector timed out",
-        ]
-    )
-
-    if phone_unavailable:
-        st.warning(
-            "كشف الموبايل ما اشتغلش بشكل كامل. "
-            "غياب أحداث الموبايل هنا مش دليل على عدم وجوده."
-        )
-
-    event_text = data["events"].decode("utf-8-sig")
     event_rows = list(
-        csv.DictReader(io.StringIO(event_text))
+        csv.DictReader(
+            io.StringIO(
+                data["events"].decode("utf-8-sig")
+            )
+        )
     )
 
     head_events = sum(
@@ -377,82 +401,99 @@ if "results" in st.session_state:
         for row in event_rows
     )
 
-    col1, col2, col3 = st.columns(3)
+    st.divider()
+    st.subheader("Results")
 
-    col1.metric(
-        "مدة الفيديو",
-        f'{data["duration"]:.1f} ثانية',
+    metric1, metric2, metric3 = st.columns(3)
+
+    metric1.metric(
+        "Duration",
+        f'{data["duration"]:.1f}s',
     )
-    col2.metric("أحداث التفات الرأس", head_events)
-    col3.metric(
-        "أحداث الموبايل",
-        "غير مكتمل" if phone_unavailable else phone_events,
+
+    metric2.metric(
+        "Head-turn events",
+        head_events,
+    )
+
+    metric3.metric(
+        "Phone events",
+        "Unavailable" if data["phone_unavailable"] else phone_events,
+    )
+
+    st.write("")
+
+    if data["phone_unavailable"]:
+        st.warning(
+            "Phone detection was incomplete. "
+            "Phone counts are not reliable for this run."
+        )
+
+    st.video(
+        data["video"],
+        format="video/mp4",
     )
 
     st.caption(
-        "الأرقام أحداث رصد متتابعة، "
-        "مش عدد موبايلات فريدة ولا أحكام على الأشخاص."
+        "Event counts are detection intervals, not unique objects. "
+        "Output video has no audio."
     )
-
-    # عرض الفيديو الناتج داخل الصفحة.
-    st.video(data["video"], format="video/mp4")
-
-    st.caption(
-        "الفيديو الناتج من غير صوت. "
-        "العبارات المرسومة داخله جاية من كود الكاشف، "
-        "ومش إثبات للتركيز أو الغش."
-    )
-
-    st.subheader("تحميل النتائج")
 
     download1, download2, download3 = st.columns(3)
 
     with download1:
         st.download_button(
-            "⬇ الفيديو الناتج",
+            "Download Video",
             data=data["video"],
-            file_name="result.mp4",
+            file_name="examlens_result.mp4",
             mime="video/mp4",
+            use_container_width=True,
         )
 
     with download2:
         st.download_button(
-            "⬇ ملخص النتائج",
+            "Summary CSV",
             data=data["report"],
-            file_name="report.csv",
+            file_name="summary.csv",
             mime="text/csv",
+            use_container_width=True,
         )
 
     with download3:
         st.download_button(
-            "⬇ سجل الأحداث",
+            "Events CSV",
             data=data["events"],
             file_name="events.csv",
             mime="text/csv",
+            use_container_width=True,
         )
 
-    with st.expander("تفاصيل الأحداث"):
-        if event_rows:
+    if event_rows:
+        with st.expander("Event details"):
             st.dataframe(
                 event_rows,
                 hide_index=True,
                 use_container_width=True,
             )
-        else:
-            st.info(
-                "مفيش أحداث مسجّلة؛ "
-                "ده مش ضمان إن كل الحالات اتكشفت."
-            )
 
-    with st.expander("سجل التشغيل"):
+    with st.expander("Processing log"):
         st.code(data["log"])
 
-    if st.button("مسح النتيجة من الجلسة"):
+    if st.button("Clear Results"):
         st.session_state.pop("results", None)
         st.rerun()
 
-st.divider()
-st.caption(
-    "مشروع تجريبي • النتائج للمراجعة البشرية • "
-    "لا تستخدمه منفردًا لاتخاذ قرارات بحق الطلاب"
+
+st.markdown(
+    """
+    <div class="footer">
+        Experimental tool. Human review required;
+        detections do not establish cheating or attention.
+        <br>
+        Videos are processed on the server.
+        Temporary working files are deleted after processing;
+        results remain in session memory until cleared or the session ends.
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
