@@ -13,7 +13,8 @@ import streamlit as st
 
 ROOT = Path(__file__).resolve().parent
 MAX_MB = 20
-MAX_SECONDS = 20
+MAX_SECONDS = 30
+
 
 st.set_page_config(
     page_title="مراجعة الفيديو",
